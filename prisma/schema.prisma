@@ -1,0 +1,26 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?  // ← ★ここを追加（コメント欄・省略可能）
+  gameType    String   // "PvP" または "PvE"
+  author      String   // 投稿者のGitHubユーザー名
+  maxMembers  Int      // 最大人数
+  createdAt   DateTime @default(now())
+  members     Member[]
+}
+
+model Member {
+  id       Int    @id @default(autoincrement())
+  name     String // 参加者のGitHubユーザー名
+  postId   Int
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
