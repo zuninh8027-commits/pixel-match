@@ -6,11 +6,11 @@ WORKDIR /workspace
 COPY package.json package-lock.json ./
 RUN npm install
 
+# Prisma Clientのコードを生成
+RUN npx prisma generate
+
 # 残りのコードをすべてコピー
 COPY . .
-
-# TypeScriptなどをビルド（もしビルドが必要な場合）
-# RUN npm run build
 
 # ポートを開放
 EXPOSE 3000
