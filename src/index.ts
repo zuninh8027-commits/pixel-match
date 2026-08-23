@@ -84,14 +84,23 @@ app.get('/', (c) => {
   )
 })
 
-// メインボード（募集一覧・作成・参加）
+// メインボード（1時間以内の募集一覧・作成・参加）
 app.get('/board', async (c) => {
   const cookie = c.req.header('cookie')
   const usernameMatch = cookie?.match(/username=([^;]+)/)
   if (!usernameMatch) return c.redirect('/')
   const username = decodeURIComponent(usernameMatch[1])
 
+  // 現在時刻から1時間前の時間を計算
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+
+  // 1時間以内に作成された投稿だけを取得
   const posts = await prisma.post.findMany({
+    where: {
+      createdAt: {
+        gte: oneHourAgo, // 1時間以内（より新しいもの）
+      },
+    },
     include: { members: true },
     orderBy: { id: 'desc' },
   })
@@ -116,7 +125,8 @@ app.get('/board', async (c) => {
         <h2 class="neon">👾 PixelMatch Board</h2>
         <div>
           <span>ログイン中: <strong>${username}</strong></span>
-          <a href="/logout" class="btn btn-sm btn-outline-danger ms-3">ログアウト</a>
+          <a href="/history" class="btn btn-sm btn-outline-info ms-3">過去の履歴を見る</a>
+          <a href="/logout" class="btn btn-sm btn-outline-danger ms-2">ログアウト</a>
         </div>
       </div>
 
@@ -148,8 +158,8 @@ app.get('/board', async (c) => {
       </div>
 
       <!-- 募集一覧 -->
-      <h3 class="mb-3">募集中の一覧</h3>
-      ${posts.length === 0 ? '<p class="text-muted">現在、募集はありません。</p>' : ''}
+      <h3 class="mb-3">募集中の一覧 <small class="text-muted fs-6">（※投稿から1時間以内のものが表示されます）</small></h3>
+      ${posts.length === 0 ? '<p class="text-muted">現在、有効な募集はありません。</p>' : ''}
       <div class="row">
         ${posts.map(post => {
           const isJoined = post.members.some(m => m.name === username)
@@ -191,6 +201,72 @@ app.get('/board', async (c) => {
           </div>
           `
         })}
+      </div>
+    </body>
+    </html>
+    `
+  )
+})
+
+// 過去の履歴ページ（1時間以上前の古い募集一覧）
+app.get('/history', async (c) => {
+  const cookie = c.req.header('cookie')
+  const usernameMatch = cookie?.match(/username=([^;]+)/)
+  if (!usernameMatch) return c.redirect('/')
+  const username = decodeURIComponent(usernameMatch[1])
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+
+  // 1時間より古い投稿を取得
+  const historyPosts = await prisma.post.findMany({
+    where: {
+      createdAt: {
+        lt: oneHourAgo, // 1時間より前（古いもの）
+      },
+    },
+    include: { members: true },
+    orderBy: { id: 'desc' },
+  })
+
+  return c.html(
+    html`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <title>PixelMatch - 過去の履歴</title>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+      <style>
+        body { background-color: #111; color: #eee; font-family: 'DotGothic16', sans-serif; }
+        .card { background-color: #222; border: 1px solid #444; color: #fff; }
+        .neon { color: #00ff00; }
+      </style>
+    </head>
+    <body class="container mt-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="neon">📜 過去の募集履歴</h2>
+        <div>
+          <a href="/board" class="btn btn-sm btn-outline-light">← メインボードに戻る</a>
+        </div>
+      </div>
+
+      <p class="text-muted">ここでは投稿から1時間以上経過した過去の募集を確認できます。</p>
+      ${historyPosts.length === 0 ? '<p class="text-muted">過去の履歴はありません。</p>' : ''}
+      <div class="row">
+        ${historyPosts.map(post => html`
+          <div class="col-md-6 mb-3">
+            <div class="card p-3 h-100 opacity-75">
+              <div class="d-flex justify-content-between">
+                <span class="badge ${post.gameType === 'PvP' ? 'bg-danger' : 'bg-primary'}">${post.gameType}</span>
+                <small class="text-muted">投稿者: ${post.author}</small>
+              </div>
+              <h5 class="mt-2 text-decoration-line-through">${post.title}</h5>
+              ${post.description ? html`<p class="small mb-2 text-muted">${post.description}</p>` : ''}
+              <p class="mb-2 text-muted">参加メンバー: ${post.members.map(m => m.name).join(', ')} (${post.members.length}/${post.maxMembers}人)</p>
+            </div>
+          </div>
+        `)}
       </div>
     </body>
     </html>
